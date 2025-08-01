@@ -1,0 +1,25 @@
+{
+  "database": {
+    "schema": {
+      "reviews_v1": {
+        "type": { "type": "text", "description": "Type of review, e.g., 'insurance' or 'contractor'." },
+        "subject_name": { "type": "text", "description": "Name of the insurer or contractor." },
+        "subject_identifier": { "type": "text", "description": "Optional identifier like a license number." },
+        "rating": { "type": "integer", "description": "Star rating from 1 to 5." },
+        "review_text": { "type": "text", "description": "The user's review comment." }
+      },
+      "incidents_v1": {
+        "description": { "type": "text", "description": "Description of the incident." },
+        "image_url": { "type": "text", "description": "URL of an optional image of the incident." },
+        "location": { "type": "jsonb", "description": "GeoJSON location data if available." }
+      },
+      "la_permits_v1": {
+        "file_url":      { "type": "text",       "description": "URL of the uploaded permit document." },
+        "file_name":     { "type": "text",       "description": "Original filename of the permit." },
+        "uploaded_at":   { "type": "timestamptz", "description": "Timestamp when the permit was uploaded." }
+      }
+    },
+    "instructions": "Use 'reviews_v1' for reviews, 'incidents_v1' to log community-reported issues, and 'la_permits_v1' to capture City of LA permit uploads."
+  }
+}
+

@@ -1,0 +1,290 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pacific Palisades Fire Recovery</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "marked": "https://cdn.jsdelivr.net/npm/marked/lib/marked.esm.js",
+            "dompurify": "https://cdn.jsdelivr.net/npm/dompurify/dist/purify.es.min.js",
+            "@websim/websim-socket": "https://esm.websim.com/@websim/websim-socket"
+        }
+    }
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Pacific Palisades Fire Recovery</h1>
+        <button id="voice-prompt-btn" class="btn" aria-label="Activate voice commands" title="Activate voice commands">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="mic-icon"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            <span>Voice Command</span>
+        </button>
+    </header>
+
+    <main>
+        <section id="map-section" aria-labelledby="map-heading">
+            <h2 id="map-heading">Recovery Map</h2>
+            <p>View fire damage, permits, and rebuilding progress across affected areas. Use the controls below to turn layers on and off.</p>
+            <div id="map-legend">
+                <h4>Map Layers</h4>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-perimeter" checked>
+                    <span class="legend-color-box" style="background-color: rgba(255, 0, 0, 0.2); border: 2px solid red;"></span>
+                    <label for="layer-toggle-perimeter">Fire Perimeter</label>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-destroyed" checked>
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" class="legend-icon" alt="Red pin">
+                    <label for="layer-toggle-destroyed">Destroyed Structures</label>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-permits" checked>
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" class="legend-icon" alt="Green pin">
+                    <label for="layer-toggle-permits">Permits Submitted (389 total, 19 approved)</label>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-wip" checked>
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png" class="legend-icon" alt="Yellow pin">
+                    <label for="layer-toggle-wip">Work in Progress (165 in progress)</label>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-reports">
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png" class="legend-icon" alt="Blue pin">
+                    <label for="layer-toggle-reports">Community Reports</label>
+                </div>
+                <div class="legend-item">
+                    <input type="checkbox" id="layer-toggle-contractors" checked>
+                    <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png" class="legend-icon" alt="Violet pin">
+                    <label for="layer-toggle-contractors">Qualified Contractors</label>
+                </div>
+            </div>
+            <div id="map-wrapper">
+                <div id="map"></div>
+
+                <!-- Chatbot: Only one instance, bottom-corner of the map -->
+                <div id="chatbot-container" class="closed">
+                    <button id="chatbot-toggle" aria-label="Open Pali Pal chat" title="Open Pali Pal chat">
+                        <img src="pali-pal-avatar.png" alt="Pali Pal, your friendly assistant.">
+                    </button>
+                    <div id="chatbot-window" role="dialog" aria-labelledby="chatbot-header-title">
+                        <div id="chatbot-header">
+                            <h3 id="chatbot-header-title">Pali Pal</h3>
+                            <button id="tts-toggle"
+                                    aria-pressed="false"
+                                    aria-label="Toggle audio on/off"
+                                    title="Toggle audio on/off">🔇</button>
+                            <button id="chatbot-close" aria-label="Close chat window" title="Close chat window">&times;</button>
+                        </div>
+                        <div id="chatbot-messages" role="log" aria-live="polite"></div>
+                        <form id="chatbot-form">
+                            <input type="text" id="chatbot-input" placeholder="Ask a question..." aria-label="Your message" required>
+                            <button type="submit" class="btn" title="Send message">Send</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <div class="disclaimer">
+                <p><strong>Disclaimer:</strong> Data is compiled from public records and is subject to a margin of error due to terrain and access issues. This map is for informational purposes only.</p>
+                <button id="report-discrepancy" class="btn btn-small" title="Report an error on the map">Report Map Discrepancy</button>
+            </div>
+            <div class="claim-address-section">
+                <button id="claim-address-btn" class="btn" title="Claim your address and verify identity">Claim My Address</button>
+            </div>
+        </section>
+
+        <section id="info-hub-section" aria-labelledby="info-hub-heading">
+            <h2 id="info-hub-heading">Verified Information Hub</h2>
+            <p>Combat misinformation with facts. Here are verified resources from official agencies to help you navigate the recovery process and avoid scams.</p>
+            <div class="button-group">
+                 <a href="https://recovery.lacounty.gov/" target="_blank" rel="noopener noreferrer" class="btn" title="Go to the official L.A. County recovery website">L.A. County Recovery Portal</a>
+                 <a href="https://www.fema.gov/disaster/4682" target="_blank" rel="noopener noreferrer" class="btn" title="Go to the official FEMA website">FEMA.gov</a>
+            </div>
+            <p class="info-note">Be cautious of unverified information, especially regarding new laws or financial aid. For example, any information about "SB 549" should be verified through official channels before taking action.</p>
+        </section>
+
+        <section id="forms-section" aria-labelledby="forms-heading">
+            <h2 id="forms-heading">Permits &amp; Contractors</h2>
+            <p>Access important forms for assistance, permits, and verify your contractor's license.</p>
+            <div class="button-group">
+                <a href="https://www.fema.gov/assistance/individual" target="_blank" rel="noopener noreferrer" class="btn" title="Go to FEMA assistance website">FEMA Assistance</a>
+                <a href="https://www.sba.gov/funding-programs/disaster-assistance" target="_blank" rel="noopener noreferrer" class="btn" title="Go to SBA disaster assistance website">SBA Loans</a>
+                <a href="https://www.ladbs.org/services/core-services/plan-check-permit" target="_blank" rel="noopener noreferrer" class="btn" title="Find local building permits">Building Permits</a>
+            </div>
+            <div class="sub-section">
+                <h3>Owner-Builder Permit Assistance</h3>
+                <p>Streamline your "like-for-like" rebuild permit. We provide templates and help you get started with the L.A. County EPIC-LA system.</p>
+                <a href="https://www.ladbs.org/services/core-services/plan-check-permit/project-assist-program" target="_blank" rel="noopener noreferrer" class="btn" title="Go to LA County Project Assist">Start with L.A. County Project Assist</a>
+                <p class="info-note">Under the Mayor's directive, 'like-for-like' rebuilds (up to 110% of prior home size) are being expedited. Ensure your contractor is licensed before beginning work.</p>
+            </div>
+            <div class="sub-section">
+                <h3>Contractor Verification & Reviews</h3>
+                <form id="contractor-verify-form">
+                    <label for="contractor-license">Enter CSLB License # to verify:</label>
+                    <div class="form-inline">
+                        <input type="text" id="contractor-license" placeholder="e.g., 123456" required>
+                        <button type="submit" class="btn">Verify</button>
+                    </div>
+                </form>
+                <p id="contractor-verify-status" class="status-message" role="status"></p>
+                
+                <hr>
+                
+                <h4>Review a Contractor</h4>
+                <form id="contractor-review-form">
+                    <label for="contractor-name">Contractor Name:</label>
+                    <input type="text" id="contractor-name" required>
+                    <label for="contractor-rating">Rating (1-5 stars):</label>
+                    <select id="contractor-rating" required>
+                        <option value="5">★★★★★</option>
+                        <option value="4">★★★★☆</option>
+                        <option value="3">★★★☆☆</option>
+                        <option value="2">★★☆☆☆</option>
+                        <option value="1">★☆☆☆☆</option>
+                    </select>
+                    <label for="contractor-review-text">Your Review:</label>
+                    <textarea id="contractor-review-text" rows="3" required></textarea>
+                    <button type="submit" class="btn">Submit Review</button>
+                </form>
+
+                <div id="contractor-reviews-list" class="reviews-list"></div>
+            </div>
+
+            <!-- Added Contractor Registry & Compliance Section -->
+            <div class="sub-section">
+                <h3>Contractor Registry & Compliance</h3>
+                <form id="contractor-registry-form">
+                    <label for="contractor-name-registry">Full Name:</label>
+                    <input type="text" id="contractor-name-registry" placeholder="e.g., Jane Doe" required>
+
+                    <label for="contractor-license-registry">CSLB License #:</label>
+                    <input type="text" id="contractor-license-registry" placeholder="e.g., 123456" required>
+                    <button type="button" id="verify-license-registry" class="btn btn-small">Verify License</button>
+                    <p id="license-registry-status" class="status-message" role="status"></p>
+
+                    <label for="workman-comp-registry">Workman's Comp Policy #:</label>
+                    <input type="text" id="workman-comp-registry" placeholder="e.g., WC-78910" required>
+                    <button type="button" id="verify-workcomp-registry" class="btn btn-small">Check Workman's Comp</button>
+                    <p id="workcomp-registry-status" class="status-message" role="status"></p>
+
+                    <label for="liability-insurance-registry">Liability Insurance Policy #:</label>
+                    <input type="text" id="liability-insurance-registry" placeholder="e.g., LI-24680" required>
+                    <button type="button" id="verify-liability-registry" class="btn btn-small">Check Liability Insurance</button>
+                    <p id="liability-registry-status" class="status-message" role="status"></p>
+
+                    <button type="submit" class="btn">Register Contractor</button>
+                </form>
+                <div id="contractor-registry-list" class="reviews-list"></div>
+            </div>
+            <!-- Added City of Los Angeles Permit Upload Section -->
+            <div class="sub-section" id="la-permit-section">
+                <h3>City of Los Angeles Permit Upload</h3>
+                <form id="la-permit-upload-form">
+                    <label for="permit-file">Select permit file (PDF/JPG/PNG):</label>
+                    <input type="file" id="permit-file" accept=".pdf,.jpg,.png" required>
+                    <button type="submit" class="btn">Upload Permit</button>
+                </form>
+                <p id="permit-upload-status" class="status-message" role="status"></p>
+                <div id="la-permits-list" class="reviews-list"></div>
+                <!-- Image gallery for addresses -->
+                <div id="address-gallery" class="image-gallery"></div>
+            </div>
+        </section>
+
+        <section id="insurance-section" aria-labelledby="insurance-heading">
+            <h2 id="insurance-heading">Insurance Hub</h2>
+            <p>Share your experience and learn from your neighbors. Track claims, review insurers, and find helpful resources. All reviews are anonymous.</p>
+            <div class="sub-section">
+                <h3>Track Your Insurance Claim</h3>
+                <p>Upload your claim documents to get started. We can help you track its status and offer insights. The California Department of Insurance has issued a one-year moratorium on insurance cancellations for affected residents.</p>
+                <form id="insurance-claim-form">
+                    <label for="claim-docs">Upload Claim Documents (.pdf, .jpg, .png):</label>
+                    <input type="file" id="claim-docs" accept=".pdf,.jpg,.png" multiple>
+                    <button type="submit" class="btn">Track Claim</button>
+                </form>
+                <p id="claim-status" class="status-message" role="status"></p>
+            </div>
+            <div class="sub-section">
+                <h3>Review an Insurance Company</h3>
+                <form id="insurance-review-form">
+                    <label for="insurance-name">Insurance Company:</label>
+                    <input type="text" id="insurance-name" required placeholder="e.g., State Farm, Allstate">
+                    <label for="insurance-rating">Rating (1-5 stars):</label>
+                    <select id="insurance-rating" required>
+                        <option value="5">★★★★★</option>
+                        <option value="4">★★★★☆</option>
+                        <option value="3">★★★☆☆</option>
+                        <option value="2">★★☆☆☆</option>
+                        <option value="1">★☆☆☆☆</option>
+                    </select>
+                    <label for="insurance-review-text">Your Experience:</label>
+                    <textarea id="insurance-review-text" rows="3" required placeholder="e.g., 'Claim process was smooth, took 3 months to get paid.'"></textarea>
+                    <button type="submit" class="btn">Submit Review</button>
+                </form>
+
+                <div id="insurance-reviews-list" class="reviews-list"></div>
+            </div>
+        </section>
+
+        <section id="incident-reporting-section" aria-labelledby="incident-reporting-heading">
+            <h2 id="incident-reporting-heading">Community Incident Reporting</h2>
+            <p>Report new issues like fallen trees or utility problems. Please provide a description and an optional photo. If prompted, please allow location access or click the map to place your report.</p>
+            <form id="incident-form">
+                <label for="incident-description">Description:</label>
+                <textarea id="incident-description" rows="4" required placeholder="e.g., A large oak tree has fallen across the road on Sunset Blvd near the park entrance."></textarea>
+                <label for="incident-image">Attach a photo (optional):</label>
+                <input type="file" id="incident-image" accept="image/*">
+                <button type="submit" class="btn" title="Submit new incident report">Submit Report</button>
+            </form>
+            <p id="incident-status" class="status-message" role="status"></p>
+
+            <div class="sub-section">
+                <h3>Live Incident Feed</h3>
+                <div id="incident-feed" class="reviews-list">
+                    <p>Loading incidents...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="mental-health-section" aria-labelledby="mental-health-heading">
+            <h2 id="mental-health-heading">Mental Health & Community Support</h2>
+            <p>Recovery is a long journey. You are not alone. Here are resources to help you and your family cope with the emotional stress of loss and rebuilding.</p>
+            <div class="button-group">
+                 <a href="tel:8008547771" class="btn" title="Call the L.A. County Mental Health Helpline">Call Helpline: (800) 854-7771</a>
+                 <a href="https://zoom.us/join" target="_blank" rel="noopener noreferrer" class="btn" title="Placeholder for virtual support group link">Join Virtual Support Group</a>
+                 <a href="https://www.redcross.org/get-help/disaster-relief-and-recovery-services/find-family-after-disaster.html" target="_blank" rel="noopener noreferrer" class="btn" title="Go to Red Cross Safe and Well website">Red Cross: Find Family</a>
+            </div>
+            <p class="info-note">The L.A. County Department of Mental Health provides a 24/7 helpline for free, confidential support.</p>
+        </section>
+
+        <section id="support-hub-section" aria-labelledby="support-hub-heading">
+            <h2 id="support-hub-heading">Community Support Forum</h2>
+            <p>Ask questions, share updates, and connect with your neighbors. All posts are public.</p>
+            <div id="comments-container">
+                <div id="comments-list"></div>
+                <button id="load-more-comments" class="btn" style="display: none;">Load More</button>
+            </div>
+            <form id="comment-form">
+                 <label for="comment-input">Post a message to the community:</label>
+                 <textarea id="comment-input" placeholder="Type your message here..." rows="3" required></textarea>
+                 <button type="submit" class="btn">Post Message</button>
+            </form>
+            <!-- WhatsApp subscription -->
+            <div id="whatsapp-section" class="sub-section">
+                <h3>Get Updates via WhatsApp</h3>
+                <input type="text" id="whatsapp-number" placeholder="+1XXXXXXXXXX" aria-label="WhatsApp Number">
+                <button id="whatsapp-subscribe" class="btn btn-small">Subscribe</button>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Pacific Palisades Community. All rights reserved.</p>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
